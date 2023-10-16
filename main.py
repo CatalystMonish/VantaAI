@@ -1,6 +1,8 @@
 import os
 import pickle
 import codecs
+import tkinter as tk
+from tkinter import scrolledtext
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="langchain")
 from typing import List
@@ -9,7 +11,7 @@ from langchain.prompts.chat import SystemMessagePromptTemplate, HumanMessageProm
 from langchain.schema import AIMessage, HumanMessage, SystemMessage, BaseMessage
 
 # Hardcoded OpenAI API key (replace with your actual key)
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = ""
 
 word_limit = 50  # word limit for task brainstorming
 
@@ -52,12 +54,6 @@ def starting_convo(assistant_role_name, user_role_name, task):
     Please reply with the specified task in {word_limit} words or less. Do not add anything else."""
     )
 
-    # Removed the following lines:
-    # task_specifier_template = HumanMessagePromptTemplate.from_template(template=task_specifier_prompt)
-    # task_specify_agent = CAMELAgent(task_specifier_sys_msg, ChatOpenAI(temperature=1.0), None)
-    # task_specifier_msg = task_specifier_template.format_messages(assistant_role_name=assistant_role_name,
-    #                                                              user_role_name=user_role_name,
-    #                                                              task=task, word_limit=word_limit)[0]
 
     # Use the formatted prompt directly as the message:
     task_specifier_msg = HumanMessage(content=task_specifier_prompt)
@@ -73,12 +69,16 @@ def starting_convo(assistant_role_name, user_role_name, task):
         Here is the task: {task}. Never forget our task!
         I must instruct you based on your expertise and my needs to complete the task.
 
+        Before every turn, consider the 'god_prompt' to ensure clarity and alignment with the main task.
+
         I must give you one instruction at a time.
+        Do not repeat the same input given to you always stick to your role and try to expand on it.
         You must write a specific solution that appropriately completes the requested instruction.
         You must decline my instruction honestly if you cannot perform the instruction due to physical, moral, legal reasons or your capability and explain the reasons.
         Do not add anything else other than your solution to my instruction.
         You are never supposed to ask me any questions you only answer questions.
         You are never supposed to reply with a flake solution. Explain your solutions.
+        Always act upon the feedback that User provides you.
         Your solution must be declarative sentences and simple present tense.
         Unless I say the task is completed, you should always start with:
 
@@ -88,11 +88,15 @@ def starting_convo(assistant_role_name, user_role_name, task):
         Always end <YOUR_SOLUTION> with: Next request."""
     )
 
+
     user_inception_prompt = (
         """Never forget you are a {user_role_name} and I am a {assistant_role_name}. Never flip roles! You will always instruct me.
         We share a common interest in collaborating to successfully complete a task.
         I must help you to complete the task.
         Here is the task: {task}. Never forget our task!
+
+        Before every turn, consider the 'god_prompt' to ensure clarity and alignment with the main task.
+
         You must instruct me based on my expertise and your needs to complete the task ONLY in the following two ways:
 
         1. Instruct with a necessary input:
@@ -112,9 +116,23 @@ def starting_convo(assistant_role_name, user_role_name, task):
         Now you must start to instruct me using the two ways described above.
         Do not add anything else other than your instruction and the optional corresponding input!
         Keep giving me instructions and necessary inputs until you think the task is completed.
+
+        Always give feedback to the response that the assistant provides you at the end of your instruction.
+
         When the task is completed, you must only reply with a single word <CAMEL_TASK_DONE>.
         Never say <CAMEL_TASK_DONE> unless my responses have solved your task."""
     )
+
+    god_prompt = (
+        """Before every turn between the {user_role_name} and the {assistant_role_name}, I will be provided with a 'god_prompt'.
+        The 'god_prompt' serves as a guiding beacon, ensuring both roles understand the overarching task and context.
+        It offers clarity and avoids potential deviations from the main task.
+        The god_prompt will be:
+        God Prompt: <GOD_PROMPT_CONTENT>
+        This content should be considered when providing instructions and solutions."""
+    )
+
+
 
     return specified_task, assistant_inception_prompt, user_inception_prompt
 
@@ -156,13 +174,17 @@ def start_rp(assistant_role_name, user_role_name, task):
     # Start the conversation loop
     chat_turn_limit = 10
     for _ in range(chat_turn_limit):  # Limiting the number of turns for simplicity
+        # Wait for God Prompt input
+        god_input = input("Enter the God Prompt: ")
+        god_message = SystemMessage(content=god_input)
+
         # User instructs the assistant
-        user_ai_msg = user_agent.step(assistant_msg)
+        user_ai_msg = user_agent.step(god_message)  # Considering god prompt
         user_msg = HumanMessage(content=user_ai_msg.content)
         userMsg = user_msg.content.replace("Instruction: ", "").replace("Input: None", "").replace("Input: None.", "")
 
         # Assistant provides a solution
-        assistant_ai_msg = assistant_agent.step(user_msg)
+        assistant_ai_msg = assistant_agent.step(user_msg)  # Considering god prompt
         assistant_msg = HumanMessage(content=assistant_ai_msg.content)
         assistantMsg = assistant_msg.content.replace("Solution: ", "").replace("Next request.", "")
 
@@ -174,8 +196,11 @@ def start_rp(assistant_role_name, user_role_name, task):
         if "<CAMEL_TASK_DONE>" in user_msg.content:
             break
 
-# Example usage:
-assistant_role = "CEO"
-user_role = "Intern"
-given_task = "Print a PDF File"
+user_role = "Developer"
+assistant_role = "Copywriter"
+
+
+
+given_task = "Write a user friendly guide to make their own AI assistant using python, divide it into tasks into the following format: [task_number] [task title] [task pretext] [code] [task posttext]"
+
 start_rp(assistant_role, user_role, given_task)
