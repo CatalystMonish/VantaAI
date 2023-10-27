@@ -1,16 +1,17 @@
 import os
 import warnings
+from dotenv import load_dotenv
 from halo import Halo  # Import Halo for the spinning indicator
-
 warnings.filterwarnings("ignore", category=UserWarning, module="langchain")
 from typing import List
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts.chat import SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.schema import AIMessage, HumanMessage, SystemMessage, BaseMessage
 
+load_dotenv()
 # Hardcoded OpenAI API key (replace with your actual key)
-os.environ["OPENAI_API_KEY"] = "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"
-
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+god_prompt_turn = 1  # set the frequency of turns to wait before asking for the god_prompt
 word_limit = 50  # word limit for task brainstorming
 
 
@@ -79,7 +80,7 @@ For {user_role_name} and {assistant_role_name}: Please discuss and specify the t
         """You are the {assistant_role_name}, and together with the {user_role_name}, you share the responsibility to collaboratively complete a task. 
 Always remember the task: {task}. 
 
-Before every turn, consider the 'god_prompt' and the feedback from the {user_role_name} to ensure clarity and alignment with the main task.
+If the 'god_prompt' is available, consider the 'god_prompt' and the feedback from the {user_role_name} to ensure clarity and alignment with the main task.
 
 You must assist the user, provide solutions, and give feedback to improve the collaboration. 
 When providing a solution or feedback, begin with: 
@@ -90,7 +91,7 @@ If you cannot perform a task due to physical, moral, legal reasons, or capabilit
 
 For {user_role_name}: Decline Reason: <YOUR_REASON> 
 
-Do not deviate from the task. Always end your response with: Next step? 
+Do not deviate from the task.
 """
     )
 
@@ -98,7 +99,7 @@ Do not deviate from the task. Always end your response with: Next step?
         """You are the {user_role_name}. Together with the {assistant_role_name}, you share the responsibility to collaboratively complete a task. 
 Always remember the task: {task}. 
 
-Before every turn, consider the 'god_prompt' and the feedback from the {assistant_role_name} to ensure clarity and alignment with the main task.
+If the 'god_prompt' is available, consider the 'god_prompt' and the feedback from the {assistant_role_name} to ensure clarity and alignment with the main task.
 
 Instruct the assistant, provide feedback, and ensure the task progresses. When instructing or providing feedback, begin with: 
 
@@ -163,13 +164,20 @@ def start_rp(assistant_role_name, user_role_name, task):
 
     # Start the conversation loop
     chat_turn_limit = 10
-    for _ in range(chat_turn_limit):  # Limiting the number of turns for simplicity
-        # Wait for God Prompt input
-        god_input = input("Enter the God Prompt: ")
-        god_message = SystemMessage(content=god_input)
+    for turn in range(chat_turn_limit):  # Limiting the number of turns for simplicity
+
+        # Check if it's time for God Prompt
+        if turn == god_prompt_turn:
+            # Wait for God Prompt input
+            god_input = input("Enter the God Prompt: ")
+            god_message = SystemMessage(content=god_input)
+
+            # Update agents with God Prompt
+            user_agent.update_messages(god_message)
+            assistant_agent.update_messages(god_message)
 
         # User instructs the assistant
-        user_ai_msg = step_with_loading_indicator(user_agent, god_message, id="User Thinking")
+        user_ai_msg = step_with_loading_indicator(user_agent, assistant_msg, id="User Thinking")
         user_msg = HumanMessage(content=user_ai_msg.content)
         userMsg = user_msg.content.replace("Instruction: ", "").replace("Input: None", "").replace("Input: None.", "")
 
@@ -188,9 +196,11 @@ def start_rp(assistant_role_name, user_role_name, task):
             break
 
 
-user_role = "Social Media Manager"
-assistant_role = "Copywriter"
+user_role = "CEO"
+assistant_role = "INTERN"
 
-given_task = "Creating a landing page copy for TimeTech Innovations."
+given_task = "Write an guide to fetch data from a girlfriend's penthouse"
+
+
 
 start_rp(assistant_role, user_role, given_task)
